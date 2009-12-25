@@ -10,7 +10,7 @@ Use maven or leiningen to compile, or use the pre-built jar.
 
 Then add the jar to your clojure classpath. And use the namespace hui.mongodb.
 
-(use 'hui.mongodb)
+@(use 'hui.mongodb)@
 
 h2. Basic Mongo Design
 
@@ -36,11 +36,11 @@ h2. Basic Usage
 Attempting to get a database or collection creates it if the database or
 collection doesn't already exist.
 
-# Use (mongo-connect str-host int-port) to create a connection. (mongo-connect)
+# Use @(mongo-connect str-host int-port)@ to create a connection. (mongo-connect)
 also accepts two additional arguments for username and password if required.
-# Use (get-db connection str-name) to return a database.
-# Use (get-coll db str-name) to return a collection.
-# Use (get-docs collection type & kwargs) to get documents where:
+# Use @(get-db connection str-name)@ to return a database.
+# Use @(get-coll db str-name)@ to return a collection.
+# Use @(get-docs collection type & kwargs)@ to get documents where:
 ** type is either :first or :all which fetches one or a sequence of documents.
         Documents are represented as clojure maps.
 ** kwargs is a hash-map (without the {}) that accepts specific keys
@@ -66,13 +66,13 @@ h2. Helper Macros
 There are a couple macros that reduce the repetition of passing in a collection,
 database, or connection into its functions.
 
-(with-mongo [host port] str-db-name ... body)
+@(with-mongo [host port] str-db-name ... body)@
 
 Uses (mongo-connect) and (get-db) which works on the functions listed above.
 
 Likewise there is one for collections:
 
-(with-collection str-coll-name ... body)
+@(with-collection str-coll-name ... body)@
 
 Which uses (get-coll) to get the collection and all collection functions operate
 on the collection.
