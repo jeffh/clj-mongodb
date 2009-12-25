@@ -1,24 +1,40 @@
 h1. clj-mongodb
 
-Clj-mongodb is a wrapper around the "Java MongoDB Driver":http://www.mongodb.org/display/DOCS/Java+Tutorial.
+clj-mongodb is a wrapper around the "Java MongoDB Driver":http://www.mongodb.org/display/DOCS/Java+Tutorial.
+
+h2. Install
+
+Use maven or leiningen to compile, or use the pre-built jar.
+
+@lein jar@
+
+Then add the jar to your clojure classpath. And use the namespace hui.mongodb.
+
+(use 'hui.mongodb)
+
+h2. Basic Mongo Design
 
 MongoDB is partitioned into several objects to operate on:
 
 * Connection: The base connection object which is lazy (connecting only when
-               it needs to).
+              it needs to).
 * Database: Database holds a series of collections. Identical to SQL-based
-             databases.
+            databases.
 * Collection: Collections hold a series of documents. Similar to a SQL table.
 * Document: Holds a collection of key-value pairs like a map. Similar to a SQL
-             table row, but with no defined fields.
+            table row, but with no defined fields.
 
 Each object belongs to a specific instance to the one above it like so:
 
 Connection => Database => Collection => Document
 
-The majority of the functions operate on one of the types above and require
-previous object in order to operate on it. Attempting to get a database or
-collection creates it if the database or collection doesn't already exist.
+The majority of the functions operate on one of the types above and require the
+previous object in order to operate on it.
+
+h2. Basic Usage
+
+Attempting to get a database or collection creates it if the database or
+collection doesn't already exist.
 
 # Use (mongo-connect str-host int-port) to create a connection. (mongo-connect)
 also accepts two additional arguments for username and password if required.
@@ -45,7 +61,7 @@ also accepts two additional arguments for username and password if required.
 *** *:process-cursor* accepts a function that processes a DBCursor instance.
     Defaults to (doc-maps) which returns a sequence of clojure maps.
 
-h2. with
+h2. Helper Macros
 
 There are a couple macros that reduce the repetition of passing in a collection,
 database, or connection into its functions.
@@ -60,5 +76,16 @@ Likewise there is one for collections:
 
 Which uses (get-coll) to get the collection and all collection functions operate
 on the collection.
+
+Example:
+
+<pre><code>
+(with-mongo ["localhost" 27017] "my-blog"
+  (prn (get-dbs))
+  (with-collection "posts"
+    (if (pos? (count-docs :first :where {:a "b"}))
+      (get-docs :all :where {:cake "a lie"})
+      (throw (Exception. "I didn't find a document where a=b!")))))
+</code></pre>
 
 See the tests of examples of these macros.
