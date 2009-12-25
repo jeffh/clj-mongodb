@@ -415,10 +415,10 @@
              to nil. See note below [1].
     :process-one => The function that processes a DBObject instance. This is
                     called when get-docs is given an id or :first as its type.
-                    Defaults to (doc-map) function.
+                    Defaults to (doc-map) which returns a clojure map.
     :process-cursor => The function that processes DBCursor instance. This is
                        called when get-docs is given :all as its type. Defaults
-                       to (doc-maps).
+                       to (doc-maps) which returns a sequence of clojure maps.
 
   [1] All maps' keys will be converted to string using
   clojure.contrib.java-utils/as-str function; therefore, keywords are

@@ -1,0 +1,64 @@
+h1. clj-mongodb
+
+Clj-mongodb is a wrapper around the "Java MongoDB Driver":http://www.mongodb.org/display/DOCS/Java+Tutorial.
+
+MongoDB is partitioned into several objects to operate on:
+
+* Connection: The base connection object which is lazy (connecting only when
+               it needs to).
+* Database: Database holds a series of collections. Identical to SQL-based
+             databases.
+* Collection: Collections hold a series of documents. Similar to a SQL table.
+* Document: Holds a collection of key-value pairs like a map. Similar to a SQL
+             table row, but with no defined fields.
+
+Each object belongs to a specific instance to the one above it like so:
+
+Connection => Database => Collection => Document
+
+The majority of the functions operate on one of the types above and require
+previous object in order to operate on it. Attempting to get a database or
+collection creates it if the database or collection doesn't already exist.
+
+# Use (mongo-connect str-host int-port) to create a connection. (mongo-connect)
+also accepts two additional arguments for username and password if required.
+# Use (get-db connection str-name) to return a database.
+# Use (get-coll db str-name) to return a collection.
+# Use (get-docs collection type & kwargs) to get documents where:
+** type is either :first or :all which fetches one or a sequence of documents.
+        Documents are represented as clojure maps.
+** kwargs is a hash-map (without the {}) that accepts specific keys
+*** *:where* accepts a map of field to value comparisons. So if you wanted to do
+    WHERE x=1 pass the map {:x 1}.
+*** *:fields* accepts a map of fields to include or exclude. For example:
+    {:a 1, :b 0} includes field a in results, but not field b.
+*** *:limit* accepts the maximum number of documents to fetch.
+*** *:sort* is a map of fields to sort by ascending or descending order. For
+    example: {:a 1, :b -1} ascending sorts field a and descending sorts field b.
+*** *:batch* accepts the number of documents to fetch at a time. Idea use
+    in large queries for batch jobs.
+*** *:skip* accepts number of documents to skip before returning documents.
+*** *:hint* accepts a map marking fields for indexes to utilize
+    (eg - {:a true}).
+*** *:process-one* accepts a function that processes a DBObject instance.
+    Defaults to (doc-map) which converts DBObject instances to clojure maps.
+*** *:process-cursor* accepts a function that processes a DBCursor instance.
+    Defaults to (doc-maps) which returns a sequence of clojure maps.
+
+h2. with
+
+There are a couple macros that reduce the repetition of passing in a collection,
+database, or connection into its functions.
+
+(with-mongo [host port] str-db-name ... body)
+
+Uses (mongo-connect) and (get-db) which works on the functions listed above.
+
+Likewise there is one for collections:
+
+(with-collection str-coll-name ... body)
+
+Which uses (get-coll) to get the collection and all collection functions operate
+on the collection.
+
+See the tests of examples of these macros.
