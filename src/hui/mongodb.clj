@@ -3,7 +3,7 @@
   (:use clojure.contrib.except
 	[clojure.contrib.java-utils :only (as-str)])
   (:import [com.mongodb Mongo BasicDBObject BasicDBList DBCollection
-	    DBObject ObjectId]
+	    DBObject ObjectId DB]
 	   java.util.Map
 	   java.net.URI))
 
@@ -44,6 +44,7 @@
   [s] (if (and (string? s) (ObjectId/isValid s)) (ObjectId. s) s))
 
 ;; block wrapping macros
+;; use mostly for other, high-level macro
 (defmacro with-mongo-conn
   "All mongo connection operations to default to operating on this connection."
   [mongo-object & body]
@@ -65,10 +66,18 @@
 
   Wraps with-mongo-connection and with-mongo-db."
   [connection-args db-name & body]
-  `(with-mongo-conn
-     (apply mongo-connect ~connection-args)
-     (with-mongo-db (get-db ~db-name)
-       ~@body)))
+  `(let [conn# ~connection-args
+	 conn# (if (instance? Mongo conn#)
+		 conn# (apply mongo-connect conn#))]
+     (with-mongo-conn conn#
+       (with-mongo-db (get-db ~db-name)
+	 ~@body))))
+
+(declare get-coll)
+(defmacro with-collection
+  "String of collection name."
+  [coll-name & body]
+  `(with-mongo-coll (get-coll ~coll-name) ~@body))
 
 (defn str-name
   "Gets the name of a given database or collection."
@@ -76,7 +85,8 @@
 
 (defn mongo-connect
   "Creates a mongodb connection. Optionally accepts username and password.
-  Throws an exception if the authentication failed."
+  Throws an exception if the authentication failed. The connection object is
+  lazy; making the connection only when necessary."
   {:arglists '([host port] [host port username password])}
   [host port & [username & [password]]]
   (let [m (Mongo. host port)]
@@ -98,16 +108,23 @@
   ([db] (db-exists? (current-connection) db))
   ([connection db] (if (some #{db} (get-dbs connection)) true false)))
 
-(defn remove-db
-  "Removes the given database if it exists."
-  ([db] (remove-db (current-connection db)))
-  ([connection db] (.getDB connection db)))
-
 (defn get-db
   "Gets the current database for the given mongodb connection. Returns a mongo
   db object. If the database does not exist, it is created."
-  ([db] (get-db (current-connection) db))
-  ([connection db] (.getDB connection (as-str db))))
+  ([db]
+     (if (instance? DB db)
+       db
+       (get-db (current-connection) db)))
+  ([connection db]
+     (if (instance? DB db)
+       db
+       (.getDB connection (as-str db)))))
+
+(defn drop-db
+  "Removes the given database if it exists."
+  ([] (drop-db (current-db)))
+  ([db] (drop-db (current-connection) db))
+  ([connection db] (.dropDatabase (get-db connection db))))
 
 (defn get-colls
   "Gets all the collection names in the database."
@@ -125,13 +142,20 @@
   "Gets a collection from the given database. Collections hold a series of 
   documents. Returns a mongo collection object. If collection doesn't exist
   it is created lazily."
-  ([coll-name] (get-coll (current-db) coll-name))
-  ([db coll-name] (.getCollection db (as-str coll-name))))
+  ([coll-name]
+     (if (instance? DBCollection coll-name)
+       coll-name
+       (get-coll (current-db) coll-name)))
+  ([db coll-name]
+     (if (instance? DBCollection coll-name)
+       coll-name
+       (.getCollection db (as-str coll-name)))))
 
 (defn drop-coll
   "Drops the given collection or string-name."
+  ([] (drop-coll (current-collection)))
   ([mcoll]
-     (cond (not mcoll) nil ; do nothing
+     (cond (not mcoll) (throw-arg "Invalid collection to drop.") ; do nothing
 	   (instance? DBCollection mcoll) (.drop mcoll)
 	   :else (drop-coll (current-db) (str mcoll))))
   ([db mcoll] (drop-coll (get-coll db mcoll))))
@@ -238,51 +262,59 @@
   [docs] (map doc-map (seq docs)))
 ;; end document operations - back to collection operations
 
-(let [seq? (fn [x] (or (list? x) (vector? x)))]
+(let [to-map? (fn [x] (or (seq? x) (vector? x)))]
   (defn insert-docs
     "Inserts a given document or sequence of docuemnts into a collection. If
     the given document is a map, it is automatically converted into a document
-    first."
+    first. Returns the inserted documents or document."
     ([doc] (insert-docs (current-collection) doc))
     ([mcoll doc]
-       (if (seq? doc)
+       (if (to-map? doc)
 	 (dorun (map (partial insert-docs mcoll) doc))
-	 (.insert mcoll (create-doc doc)))))
+	 (doc-map (.insert mcoll (create-doc doc))))))
 
   (defn save-docs
     "Saves the document or sequence of documents to the collection. If the
-    collection has _id, it is inserted or updated."
+    collection has _id, it is inserted or updated. Returns the inserted and
+    saved documents or document."
     ([doc] (save-docs (current-collection) doc))
     ([mcoll doc]
-       (if (seq? doc)
+       (if (to-map? doc)
 	 (dorun (map (partial save-docs mcoll) doc))
-	 (.save mcoll (create-doc doc)))))
+	 (doc-map (.save mcoll (create-doc doc))))))
 
-  (defn delete-docs
+  (defn drop-docs
     "Removes the given document or sequence of documents from the collection."
-    ([doc] (delete-docs (current-collection) doc))
+    ([doc] (drop-docs (current-collection) doc))
     ([mcoll doc]
-       (if (seq? doc)
-	 (dorun (map (partial delete-docs mcoll) doc))
+       (if (to-map? doc)
+	 (dorun (map (partial drop-docs mcoll) doc))
 	 (.remove mcoll doc))))
 
   (declare get-docs)
-  (defn delete-docs-if
+  (defn drop-docs-if
     "Removes a set of documents from a collection based on a :where query-map
     from the (get-docs)."
-    ([type query-map] (delete-docs-if (current-collection) query-map))
+    ([type query-map] (drop-docs-if (current-collection) query-map))
     ([mcoll type query-map]
-       (delete-docs mcoll (get-docs mcoll type query-map)))))
+       (drop-docs mcoll (get-docs mcoll type query-map)))))
+
+;; searching helpers -- its recommended to use the get-docs function which
+;; wraps first-doc, get-doc, modify-cursor, and find-all-docs
 
 (defn first-doc
-  "Returns the first document in the collection."
+  "Returns the first document in the collection. Optionally accepts a specific
+  collection and DBObject parser. The default parser is doc-map."
   ([] (first-doc (current-collection)))
-  ([mcoll] (.findOne mcoll)))
+  ([mcoll] (first-doc mcoll doc-map))
+  ([mcoll db-obj-parser] (db-obj-parser (.findOne mcoll))))
 
 (defn get-doc
-  "Returns the first document that matches the given id."
+  "Returns the first document that matches the given id. Optionally accepts a
+  specific collection and DBObject parser. The default parser is doc-map."
   ([id] (get-doc (current-collection id)))
-  ([mcoll id] (.findOne mcoll id)))
+  ([mcoll id] (get-doc mcoll id doc-map))
+  ([mcoll id db-obj-parser] (db-obj-parser (.findOne mcoll id))))
 
 
 (defn modify-cursor
@@ -324,6 +356,9 @@
      $op => #{\"$gt\" \"$lt\" \"$gte\" \"$lte\" \"$ne\" \"$in\" \"$nin\"
               \"$mod\" \"$all\" \"$size\" \"$exists\" #\"regular expression\"}
   fields => {key #{1 0}}
+
+  Returns a DBCursor instance, which can be converted to a sequence of results
+  using seq or modified using (modify-cursor).
 
   Searches the given collection for documents. Accepts a query-map which
   is identical to 'WHERE x=y' sql mapping. Fields provides a map of fields
@@ -406,8 +441,8 @@
 	type (obj-id type)]
     (throw-if (nil? type) "Type needs to be defined or is invalid.")
     (throw-if (nil? kwargs) "kwargs is not an even number of arguments.")
-    (cond (instance? ObjectId type) (process-one (get-doc mcoll type))
-	  (and (= type :first) (count= 0)) (process-one (first-doc mcoll))
+    (cond (instance? ObjectId type) (get-doc mcoll type process-one)
+	  (and (= type :first) (count= 0)) (first-doc mcoll process-one)
 	  (= type :first)
 	  (process-one
 	   (first (seq (apply modify-cursor
@@ -427,7 +462,11 @@
     "Counts the number of docs based on (get-docs) query. Passes all its
     arguments to (find-docs), except modifies :process-one and :process-cursor
     kwargs for counting purposes. Unlike get-docs, specifying the type
-    is required."
+    is required.
+
+    All arguments are identical to (get-docs) with the exception of
+    :process-one and :process-cursor kwargs."
+    {:arglists '([type & kwargs] [mcoll type & kwargs])}
     [& args]
     (apply get-docs
 	   (conj (into [] args) :process-one p1, :process-cursor pc))))

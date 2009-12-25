@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project>
   <modelVersion>4.0.0</modelVersion>
-  <groupId>hui</groupId>
+  <groupId>org.clojars.jeffh</groupId>
   <artifactId>clj-mongodb</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
   <name>clj-mongodb</name>
   <description>A light-weight wrapper to the MongoDB java driver.</description>
+  <scm>
+    <connection>scm:git:git://github.com/jeffh/clj-mongodb.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/jeffh/clj-mongodb.git</developerConnection>
+    <tag>a8bbc60d3e264564be65cd06267c241836b30ff8</tag>
+    <url>http://github.com/jeffh/clj-mongodb</url>
+  </scm>
   <repositories>
     <repository>
       <id>central</id>

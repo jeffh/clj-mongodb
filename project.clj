@@ -1,4 +1,4 @@
-(defproject hui/clj-mongodb "0.1.0"
+(defproject org.clojars.jeffh/clj-mongodb "0.1.1"
   :description "A light-weight wrapper to the MongoDB java driver."
   :dependencies [[org.clojure/clojure "1.1.0-master-SNAPSHOT"]
 		 [org.clojure/clojure-contrib "1.0-SNAPSHOT"]
