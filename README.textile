@@ -10,7 +10,7 @@ Use maven or leiningen to compile, or use the pre-built jar.
 
 Then add the jar to your clojure classpath. And use the namespace hui.mongodb.
 
-@(use 'hui.mongodb)@
+@(use 'net.jeffhui.mongodb)@
 
 h2. Basic Mongo Design
 
